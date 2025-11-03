@@ -11,5 +11,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error reading config: %v", err)
 	}
-	s := state{cfg: *cfg}
+	cfg.SetUser("leo")
+	cfg, err = config.Read()
+	fmt.Println(cfg)
 }
