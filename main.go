@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/arglp/gator/internal/config"
-	"github.com/arglp/gator/internal/database"
 	"fmt"
 	"log"
 	"os"
 	"database/sql"
+	"github.com/arglp/gator/internal/config"
+	"github.com/arglp/gator/internal/database"
 	_ "github.com/lib/pq"
 )
 
@@ -30,6 +30,7 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	defer db.Close()
 	s.db = database.New(db)
 
 	cmds := commands{
@@ -38,6 +39,8 @@ func main() {
 
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
+	cmds.register("reset", handlerReset)
+	cmds.register("users", handlerUsers)
 
 	args := os.Args
 	if len(args) < 2 {
