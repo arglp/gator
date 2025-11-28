@@ -109,22 +109,30 @@ func handlerUsers(s *state, cmd command) error {
 }
 
 func handlerAgg(s *state, cmd command) error {
-	feed, err := fetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
-	if err != nil {
-		return errors.New("couldn't fetch feed")
-	}
-	fmt.Println(feed)
-	return nil
-}
-
-func handlerAddFeed(s *state, cmd command) error {
-	if len(cmd.args) < 2 {
+	if len(cmd.args) < 1 {
 		return errors.New("required more arguments")
 	}
 
-	user, err := s.db.GetUser(context.Background(),s.cfg.CurrentUserName)
+	timeBetweenRequests, err := time.ParseDuration(cmd.args[0])
 	if err != nil {
-		return errors.New("couldn't get current user")
+		return err
+	}
+
+	fmt.Printf("Collecting feeds every %.0fm%.0fs", timeBetweenRequests.Minutes(), timeBetweenRequests.Seconds())
+
+	ticker := time.NewTicker(timeBetweenRequests)
+	for ;; <-ticker.C {
+		err = scrapeFeeds(s)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func handlerAddFeed(s *state, cmd command, user database.User) error {
+	if len(cmd.args) < 2 {
+		return errors.New("required more arguments")
 	}
 
 	userId := user.ID
@@ -137,7 +145,7 @@ func handlerAddFeed(s *state, cmd command) error {
 		UpdatedAt: time.Now().UTC(),
 		Name: name,
 		Url: url,
-		UserID : userId,
+		UserID: userId,
 	})
 	if err != nil {
 		return err
@@ -174,7 +182,7 @@ func handlerFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 1 {
 		return errors.New("required more arguments")
 	}
@@ -182,11 +190,6 @@ func handlerFollow(s *state, cmd command) error {
 	feed, err := s.db.GetFeed(context.Background(), url)
 	if err != nil {
 		return errors.New ("couldn't find feed")
-	}
-
-	user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return errors.New ("couldn't find user")
 	}
 
 	follow, err := s.db.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
@@ -206,11 +209,8 @@ func handlerFollow(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollowing( s* state, cmd command) error {
-	user, err := s.db.GetUser(context.Background(),s.cfg.CurrentUserName)
-	if err != nil {
-		return errors.New("couldn't find user")
-	}
+func handlerFollowing( s* state, cmd command, user database.User) error {
+	
 	follows, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return errors.New("couldn't find followed feeds")
@@ -218,6 +218,26 @@ func handlerFollowing( s* state, cmd command) error {
 	fmt.Printf("user: %s is following these feeds:\n", user.Name)
 	for _, follow := range follows {
 		fmt.Println(follow.FeedName)
+	}
+	return nil
+}
+
+func handlerUnfollow(s* state, cmd command, user database.User) error {
+	if len(cmd.args) < 1 {
+		return errors.New("required more arguments")
+	}
+	url := cmd.args[0]
+
+	feed, err := s.db.GetFeed(context.Background(), url)
+	if err != nil {
+		return err
+	}
+	err = s.db.DeleteFeedFollow(context.Background(),database.DeleteFeedFollowParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	})
+	if err != nil {
+		return err
 	}
 	return nil
 }
