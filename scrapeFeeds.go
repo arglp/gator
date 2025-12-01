@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"time"
-	"fmt"
 	"database/sql"
+
+	"github.com/google/uuid"
 	"github.com/arglp/gator/internal/database"
 )
 
@@ -29,15 +30,62 @@ func scrapeFeeds(s* state) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("channel title: %s\n", rssFeed.Channel.Title)
-	fmt.Printf("channel link: %s\n", rssFeed.Channel.Link)
-	fmt.Printf("channel description: %s\n",  rssFeed.Channel.Description)
-	fmt.Println("items:")
+
 	for _, item := range rssFeed.Channel.Item {
-		fmt.Printf("item title: %s\n", item.Title)
-		fmt.Printf("item link: %s\n", item.Link)
-		fmt.Printf("item description: %s\n", item.Description)
-		fmt.Printf("item publication date: %s\n", item.PubDate)
+
+		title := sql.NullString{}
+		if item.Title == "" {
+			title.Valid = false
+		} else {
+			title.String = item.Title
+			title.Valid = true
+		}
+		description := sql.NullString{}
+		if item.Description == "" {
+			description.Valid = false
+		} else {
+			description.String = item.Description
+			description.Valid = true
+		}
+
+		timeLayouts := []string{
+						time.RFC3339, 
+						time.RFC822, 
+						time.RFC850,
+						time.RFC1123,
+						time.ANSIC,
+						time.UnixDate,
+						time.RubyDate}
+
+		pubDateParsed := time.Now()
+		for _, layout := range timeLayouts {
+			pubDateParsed, err = time.Parse(layout, item.PubDate)
+			if err == nil {
+				break
+			}
+		}
+
+		publishedAt := sql.NullTime{}
+		if item.PubDate == "" {
+			publishedAt.Valid = false
+		} else {
+			publishedAt.Time = pubDateParsed
+			publishedAt.Valid = true
+		}
+
+		err = s.db.CreatePost(context.Background(), database.CreatePostParams{
+			ID:			uuid.New(),
+			CreatedAt: 	time.Now().UTC(),
+			UpdatedAt:  time.Now().UTC(),
+			Title:      title,
+			Url:		item.Link,
+			Description: description,
+			PublishedAt:	publishedAt,
+			FeedID:		feed.ID,
+		})
+		if err != nil {
+			return err
+		}
 	}
 return nil
 }

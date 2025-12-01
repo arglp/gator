@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"context"
 	"time"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/arglp/gator/internal/database"
@@ -22,7 +23,7 @@ type commands struct {
 func (c *commands) run(s *state, cmd command) error {
 	handler, ok := c.handlers[cmd.name]
 	if !ok {
-		return errors.New("Unknown command")
+		return errors.New("unknown command")
 	}
 	return handler(s, cmd)
 }
@@ -240,4 +241,31 @@ func handlerUnfollow(s* state, cmd command, user database.User) error {
 		return err
 	}
 	return nil
+}
+
+func handlerBrowse(s* state, cmd command, user database.User) error {
+	
+	var limit int32 = 2
+	if len(cmd.args) > 0 {
+		limit64, err := strconv.ParseInt(cmd.args[0], 10, 32)
+		if err == nil {
+			limit = int32(limit64)
+		}
+	}
+
+	posts, err := s.db.GetPostForUser(context.Background(), database.GetPostForUserParams{
+		UserID: user.ID,
+		Limit: limit,
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, post := range posts {
+		fmt.Printf("title: %v\n", post.Title)
+		fmt.Printf("link: %s\n", post.Url)
+		fmt.Printf("item description: %v\n", post.Description)
+		fmt.Printf("item publication date: %v\n", post.PublishedAt)
+	}
+return nil
 }

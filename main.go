@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"errors"
 	"os"
 	"database/sql"
 	"github.com/arglp/gator/internal/config"
@@ -47,10 +48,12 @@ func main() {
 	cmds.register("follow", middlewareLoggedIn(handlerFollow))
 	cmds.register("following", middlewareLoggedIn(handlerFollowing))
 	cmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
+	cmds.register("browse", middlewareLoggedIn(handlerBrowse))
 
 	args := os.Args
 	if len(args) < 2 {
-		fmt.Errorf("argument not provided")
+		err = errors.New("argument not provided")
+		fmt.Println(err)
 		os.Exit(1)
 	}
 	cmd := command{
