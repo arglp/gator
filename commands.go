@@ -34,14 +34,14 @@ func (c *commands) register(name string, f func(*state, command) error) {
 
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
-		return errors.New("argument is required")
+		return errors.New("please provide a user name")
 	}
 
 	name := cmd.args[0]
 	
 	_, err := s.db.GetUser(context.Background(), name)
 	if err != nil {
-		return errors.New("user doesn't exist")
+		return fmt.Errorf("user %s doesn't exist", name)
 	}
 
 	err = s.cfg.SetUser(name)
@@ -49,19 +49,19 @@ func handlerLogin(s *state, cmd command) error {
 		return err
 	}
 	
-	fmt.Println("User has been set")
+	fmt.Printf("%s has been set as active user", name)
 	return nil
 }
 
 func handlerRegister(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
-		return errors.New("argument is required")
+		return errors.New("please provide a username to register")
 	}
 
 	name := cmd.args[0]
 	_, err := s.db.GetUser(context.Background(), name)
 	if err == nil {
-		return errors.New("username already exists")
+		return fmt.Errorf("username %s already exists", name)
 	}
 
 	user, err := s.db.CreateUser(context.Background(), database.CreateUserParams{
@@ -72,16 +72,15 @@ func handlerRegister(s *state, cmd command) error {
 	})
 
 	if err != nil {
-		return errors.New("couldn't register user")
+		return fmt.Errorf("couldn't register user: %w", err)
 	}
 
 	err = s.cfg.SetUser(name)
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't set user: %w",err)
 	}
 
-	fmt.Printf("new user %s was created", name)
-	fmt.Println(user)
+	fmt.Printf("registered new user %s\n", user.Name)
 
 	return nil
 }
@@ -89,7 +88,7 @@ func handlerRegister(s *state, cmd command) error {
 func handlerReset(s *state, cmd command) error {
 	err := s.db.DeleteUsers(context.Background())
 	if err != nil {
-		return errors.New("couldn't delete")
+		return fmt.Errorf("couldn't delete users: %w", err)
 	}
 	return nil
 }
@@ -97,8 +96,15 @@ func handlerReset(s *state, cmd command) error {
 func handlerUsers(s *state, cmd command) error {
 	users, err := s.db.GetUsers(context.Background())
 	if err != nil {
-		return errors.New ("couldn't get users")
+		return fmt.Errorf("couldn't get users: %w", err)
 	}
+
+	if len(users) == 0 {
+		fmt.Println("no users registered")
+	}
+
+	fmt.Println("registered users:")
+
 	for _, user := range users {
 		if user.Name == s.cfg.CurrentUserName {
 			fmt.Printf("%s (current)\n", user.Name)
@@ -111,7 +117,7 @@ func handlerUsers(s *state, cmd command) error {
 
 func handlerAgg(s *state, cmd command) error {
 	if len(cmd.args) < 1 {
-		return errors.New("required more arguments")
+		return errors.New("please enter a time string")
 	}
 
 	timeBetweenRequests, err := time.ParseDuration(cmd.args[0])
@@ -119,21 +125,21 @@ func handlerAgg(s *state, cmd command) error {
 		return err
 	}
 
-	fmt.Printf("Collecting feeds every %.0fm%.0fs", timeBetweenRequests.Minutes(), timeBetweenRequests.Seconds())
+	fmt.Printf("collecting feeds every %.0fm%.0fs", timeBetweenRequests.Minutes(), timeBetweenRequests.Seconds())
 
 	ticker := time.NewTicker(timeBetweenRequests)
 	for ;; <-ticker.C {
 		err = scrapeFeeds(s)
+		fmt.Println("collecting feeds")
 		if err != nil {
 			return err
 		}
 	}
-	return nil
 }
 
 func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 2 {
-		return errors.New("required more arguments")
+		return errors.New("please provide name and url")
 	}
 
 	userId := user.ID
@@ -162,7 +168,7 @@ func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if err != nil {
 		return err
 	}
-
+	fmt.Println("added feed:")
 	fmt.Println(feed.ID)
 	fmt.Println(feed.CreatedAt)
 	fmt.Println(feed.UpdatedAt)
